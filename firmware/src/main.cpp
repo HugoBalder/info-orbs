@@ -1,7 +1,6 @@
 #include "GlobalResources.h"
 #include "MainHelper.h"
 #include "clockwidget/ClockWidget.h"
-#include "matrixwidget/MatrixWidget.h"
 #include "mqttwidget/MQTTWidget.h"
 #include "parqetwidget/ParqetWidget.h"
 #include "stockwidget/StockWidget.h"
@@ -11,6 +10,7 @@
 #include <ArduinoLog.h>
 
 TFT_eSPI tft = TFT_eSPI();
+TFT_eSprite spr = TFT_eSprite(&tft);
 
 GlobalTime *globalTime{nullptr};
 WifiWidget *wifiWidget{nullptr};
@@ -22,11 +22,11 @@ WidgetSet *widgetSet{nullptr};
 void addWidgets() {
     // Always add clock
     widgetSet->add(new ClockWidget(*sm, *config));
-#ifdef INCLUDE_WEATHER
-    widgetSet->add(new WeatherWidget(*sm, *config));
-#endif
 #ifdef INCLUDE_STOCK
     widgetSet->add(new StockWidget(*sm, *config));
+#endif
+#ifdef INCLUDE_WEATHER
+    widgetSet->add(new WeatherWidget(*sm, *config));
 #endif
 #ifdef INCLUDE_PARQET
     widgetSet->add(new ParqetWidget(*sm, *config));
@@ -42,37 +42,18 @@ void addWidgets() {
 #ifdef INCLUDE_MQTT
     widgetSet->add(new MQTTWidget(*sm, *config));
 #endif
-#ifdef INCLUDE_MATRIXSCREEN
-    widgetSet->add(new MatrixWidget(*sm, *config));
-#endif
 }
 
 void setup() {
     // Initialize global resources
     initializeGlobalResources();
-
-#ifdef SERIAL_INTERFACE_INIT_DELAY
-    // Add a delay to allow the serial interface to initialize
-    delay(SERIAL_INTERFACE_INIT_DELAY);
-#endif
-
     Serial.begin(115200);
-
-    // Clear the serial buffer of any garbage
-    while (Serial.available() > 0) {
-        Serial.read();
-    }
-
-#ifdef LOG_TIMESTAMP
-    Log.setPrefix(MainHelper::printPrefix);
-#endif
     Log.begin(LOG_LEVEL, &Serial);
-    Log.noticeln("🚀 Starting up...");
-    Log.noticeln("PCB Version: %s", PCB_VERSION);
+    Log.noticeln("Starting up...");
 
     wifiManager = new OrbsWiFiManager();
     config = new ConfigManager(*wifiManager);
-    sm = new ScreenManager(tft);
+    sm = new ScreenManager(tft, spr);
     widgetSet = new WidgetSet(sm);
 
     // Pass references to MainHelper

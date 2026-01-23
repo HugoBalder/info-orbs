@@ -25,9 +25,7 @@ void Button::isrButtonChange() {
         if (m_pinLevel == RELEASED_LEVEL) {
             // Button was now released
             // We now check if this was a short, medium or long press
-            if (millis() - m_pressedSince >= VERY_LONG_PRESS_TIME) { // Added very long check
-                m_state = BTN_VERY_LONG;
-            } else if (millis() - m_pressedSince >= LONG_PRESS_TIME) {
+            if (millis() - m_pressedSince >= LONG_PRESS_TIME) {
                 m_state = BTN_LONG;
             } else if (millis() - m_pressedSince >= MEDIUM_PRESS_TIME) {
                 m_state = BTN_MEDIUM;
@@ -61,10 +59,6 @@ bool Button::pressedMedium() {
 
 bool Button::pressedLong() {
     return (m_state == BTN_LONG && has_changed());
-}
-
-bool Button::pressedVeryLong() {
-    return (m_state == BTN_VERY_LONG && has_changed());
 }
 
 ButtonState Button::getState() {

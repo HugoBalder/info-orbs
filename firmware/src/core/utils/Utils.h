@@ -11,37 +11,6 @@ enum ScreenMode {
     Dark = 1
 };
 
-enum class TimeFrequency : unsigned long {
-    Immediate = 0,
-    OneHundredMilliseconds = 100,
-    FiveHundredMilliseconds = 500,
-    OneSecond = 1000,
-    TwoSeconds = 2000,
-    ThreeSeconds = 3000,
-    FourSeconds = 4000,
-    FiveSeconds = 5000,
-    TenSeconds = 10000,
-    FifteenSeconds = 15000,
-    TwentySeconds = 20000,
-    TwentyFiveSeconds = 25000,
-    ThirtySeconds = 30000,
-    OneMinute = 60000,
-    TwoMinutes = 120000,
-    ThreeMinutes = 180000,
-    FourMinutes = 240000,
-    FiveMinutes = 300000,
-    TenMinutes = 600000,
-    FifteenMinutes = 900000,
-    ThirtyMinutes = 1800000,
-    OneHour = 3600000,
-    TwoHours = 7200000,
-    FourHours = 14400000,
-    SixHours = 21600000,
-    TwelveHours = 43200000,
-    OneDay = 86400000,
-    OneWeek = 604800000
-};
-
 #define ScreenWidth 240
 #define ScreenHeight 240
 #define ScreenCenterX (ScreenWidth / 2)

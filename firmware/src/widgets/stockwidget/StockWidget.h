@@ -12,7 +12,7 @@
 #include "Widget.h"
 #include "config_helper.h"
 
-#define MAX_STOCKS 15
+#define MAX_STOCKS 5
 
 class StockWidget : public Widget {
 public:
@@ -28,10 +28,9 @@ public:
 private:
     void processResponse(StockDataModel &stock, int httpCode, const String &response);
     void displayStock(int8_t displayIndex, StockDataModel &stock, uint32_t backgroundColor, uint32_t textColor);
-    void nextPage();
 
-    int8_t m_page = 0;
-    int8_t m_pageCount = 0;
+    unsigned long m_stockDelay = 900000; // default to 15m between updates
+    unsigned long m_stockDelayPrev = 0;
 
 #ifdef STOCK_TICKER_LIST
     std::string m_stockList = STOCK_TICKER_LIST;
@@ -47,20 +46,6 @@ private:
 #endif
 
     int m_stockchangeformat = STOCK_CHANGE_FORMAT; // Show percent change (0) or price change (1) for stocks
-
-    int m_switchinterval = 10;
-    unsigned long m_prevMillisSwitch = 0;
-
-    WidgetTimer &m_drawTimer;
-    WidgetTimer &m_updateTimer;
-
-#ifndef STOCK_UPDATE_DELAY
-    #define STOCK_UPDATE_DELAY TimeFrequency::FifteenMinutes
-#endif
-
-#ifndef STOCK_DRAW_DELAY
-    #define STOCK_DRAW_DELAY TimeFrequency::ThreeSeconds
-#endif
 };
 
 #endif // STOCK_WIDGET_H

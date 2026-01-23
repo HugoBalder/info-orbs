@@ -6,8 +6,7 @@ enum ButtonState {
     BTN_NOTHING,
     BTN_SHORT,
     BTN_MEDIUM,
-    BTN_LONG,
-    BTN_VERY_LONG
+    BTN_LONG
 };
 
 enum Buttons {
@@ -25,7 +24,6 @@ public:
     bool pressedShort();
     bool pressedMedium();
     bool pressedLong();
-    bool pressedVeryLong();
     ButtonState getState();
     void isrButtonChange();
 
@@ -51,11 +49,6 @@ public:
     const static unsigned long LONG_PRESS_TIME = BUTTON_LONG_PRESS_TIME;
 #else
     const static unsigned long LONG_PRESS_TIME = 2000;
-#endif
-#ifdef BUTTON_VERY_LONG_PRESS_TIME
-    const static unsigned long VERY_LONG_PRESS_TIME = BUTTON_VERY_LONG_PRESS_TIME;
-#else
-    const static unsigned long VERY_LONG_PRESS_TIME = 15000; // Default 15 seconds
 #endif
 
 private:

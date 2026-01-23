@@ -95,17 +95,6 @@ private:
     void subscribeToOrbs(); // Subscribe to all configured orb topics
     uint16_t getColorFromString(const String &colorStr); // Convert color string to uint16_t
     void drawOrb(int orbid); // Draw a single orb based on orbid
-
-    WidgetTimer &m_drawTimer;
-    WidgetTimer &m_updateTimer;
-
-#ifndef MQTT_UPDATE_DELAY
-    #define MQTT_UPDATE_DELAY TimeFrequency::OneHundredMilliseconds
-#endif
-
-#ifndef MQTT_DRAW_DELAY
-    #define MQTT_DRAW_DELAY TimeFrequency::TenSeconds
-#endif
 };
 
 #endif // MQTT_WIDGET_H

@@ -21,7 +21,7 @@
 
 class ScreenManager {
 public:
-    ScreenManager(TFT_eSPI &tft);
+    ScreenManager(TFT_eSPI &tft, TFT_eSprite &spr);
 
     void selectScreen(int screen);
     void selectAllScreens();
@@ -84,23 +84,17 @@ public:
     JRESULT drawJpg(int32_t x, int32_t y, const uint8_t jpeg_data[], uint32_t data_size, uint8_t scale = 1, uint32_t imageColor = 0);
     JRESULT drawFsJpg(int32_t x, int32_t y, const char *filename, uint8_t scale = 1, uint32_t imageColor = 0);
 
-    // Additional functions used by MatrixWidget
-    int16_t width();
-    int16_t height();
-    void setTextColor(uint16_t c);
-    void setTextColor(uint16_t c, uint16_t b);
-    void setTextColor(uint16_t c, uint16_t b, bool bgfill);
-    uint16_t color565(uint8_t r, uint8_t g, uint8_t b);
-    void setCursor(int16_t x, int16_t y);
-    void setTextSize(uint8_t s);
-    void print(String s);
-    void print(char c);
+    void S_pushSprite(int32_t x, int32_t y);
+    void S_fillSprite(uint32_t color);
+    void S_fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, uint32_t color);
+    void S_fillCircle(int32_t x, int32_t y, int32_t r, uint32_t color);
 
 private:
     static ScreenManager *instance;
 
     uint8_t m_screen_cs[5] = {SCREEN_1_CS, SCREEN_2_CS, SCREEN_3_CS, SCREEN_4_CS, SCREEN_5_CS};
     TFT_eSPI &m_tft;
+    TFT_eSprite &m_spr;
     OpenFontRender m_render;
     TTF_Font m_curFont = TTF_Font::NONE;
     uint8_t m_brightness = TFT_BRIGHTNESS;

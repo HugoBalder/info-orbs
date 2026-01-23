@@ -2,12 +2,11 @@
 #include "ConfigManager.h"
 #include "Utils.h"
 #include <Arduino.h>
-#include <ArduinoLog.h>
 #include <LittleFS.h>
 
 ScreenManager *ScreenManager::instance = nullptr;
 
-ScreenManager::ScreenManager(TFT_eSPI &tft) : m_tft(tft) {
+ScreenManager::ScreenManager(TFT_eSPI &tft, TFT_eSprite &spr) : m_tft(tft), m_spr(spr) {
 
     for (int i = 0; i < NUM_SCREENS; i++) {
         pinMode(m_screen_cs[i], OUTPUT);
@@ -19,6 +18,10 @@ ScreenManager::ScreenManager(TFT_eSPI &tft) : m_tft(tft) {
     m_tft.fillScreen(TFT_WHITE);
     m_tft.setTextDatum(MC_DATUM);
     reset();
+
+    // Init Sprite
+    m_spr.createSprite(116, 224);
+    m_spr.fillSprite(TFT_BLACK);
 
     // Init TJpg_Decode
     TJpgDec.setSwapBytes(true); // JPEG rendering setup
@@ -32,18 +35,18 @@ ScreenManager::ScreenManager(TFT_eSPI &tft) : m_tft(tft) {
     setFont(DEFAULT_FONT);
     m_render.setDrawer(m_tft);
 
-    Log.noticeln("ScreenManager initialized");
-    Log.noticeln("TFT_MOSI: %s", String(TFT_MOSI));
-    Log.noticeln("TFT_MISO: %s", String(TFT_MISO));
-    Log.noticeln("TFT_SCLK: %s", String(TFT_SCLK));
-    Log.noticeln("TFT_CS: %s", String(TFT_CS));
-    Log.noticeln("TFT_DC: %s", String(TFT_DC));
-    Log.noticeln("TFT_RST: %s", String(TFT_RST));
-    Log.noticeln("SCREEN_1_CS: %s", String(SCREEN_1_CS));
-    Log.noticeln("SCREEN_2_CS: %s", String(SCREEN_2_CS));
-    Log.noticeln("SCREEN_3_CS: %s", String(SCREEN_3_CS));
-    Log.noticeln("SCREEN_4_CS: %s", String(SCREEN_4_CS));
-    Log.noticeln("SCREEN_5_CS: %s", String(SCREEN_5_CS));
+    Serial.println("ScreenManager initialized");
+    Serial.println("TFT_MOSI:" + String(TFT_MOSI));
+    Serial.println("TFT_MISO:" + String(TFT_MISO));
+    Serial.println("TFT_SCLK:" + String(TFT_SCLK));
+    Serial.println("TFT_CS:" + String(TFT_CS));
+    Serial.println("TFT_DC:" + String(TFT_DC));
+    Serial.println("TFT_RST:" + String(TFT_RST));
+    Serial.println("SCREEN_1_CS:" + String(SCREEN_1_CS));
+    Serial.println("SCREEN_2_CS:" + String(SCREEN_2_CS));
+    Serial.println("SCREEN_3_CS:" + String(SCREEN_3_CS));
+    Serial.println("SCREEN_4_CS:" + String(SCREEN_4_CS));
+    Serial.println("SCREEN_5_CS:" + String(SCREEN_5_CS));
 
     instance = this;
 }
@@ -82,7 +85,7 @@ void ScreenManager::setFont(TTF_Font font) {
     if (error == 0) {
         m_curFont = font;
     } else {
-        Log.errorln("Unable to load TTF font %d", font);
+        Serial.printf("Unable to load TTF font %d\n", font);
     }
 }
 
@@ -132,7 +135,7 @@ void ScreenManager::fillScreen(uint32_t color) {
 
 bool ScreenManager::setBrightness(uint8_t brightness) {
     if (m_brightness != brightness) {
-        Log.noticeln("Brightness set to %d", brightness);
+        Serial.printf("Brightness set to %d\n", brightness);
         m_brightness = brightness;
         return true;
     } else {
@@ -183,7 +186,7 @@ void ScreenManager::reset() {
 
 unsigned int ScreenManager::calculateFitFontSize(uint32_t limit_width, uint32_t limit_height, Layout layout, const String &text) {
     unsigned int calcFontSize = m_render.calculateFitFontSize(limit_width, limit_height, layout, text.c_str());
-    // Log.traceln("calcFitFontSize: t=%s, w=%d, h=%d -> fs=%d", str, limit_width, limit_height, calcFontSize);
+    // Serial.printf("calcFitFontSize: t=%s, w=%d, h=%d -> fs=%d\n", str, limit_width, limit_height, calcFontSize);
     return calcFontSize;
 }
 
@@ -320,47 +323,10 @@ int16_t ScreenManager::drawLegacyChar(uint16_t uniCode, int32_t x, int32_t y, ui
     return m_tft.drawChar(uniCode, x, y, font);
 }
 
-int16_t ScreenManager::width() {
-    return m_tft.width();
-}
-
-int16_t ScreenManager::height() {
-    return m_tft.height();
-}
-
-void ScreenManager::setTextColor(uint16_t c) {
-    m_tft.setTextColor(c);
-}
-void ScreenManager::setTextColor(uint16_t c, uint16_t b) {
-    m_tft.setTextColor(c, b);
-}
-void ScreenManager::setTextColor(uint16_t c, uint16_t b, bool bgfill) {
-    m_tft.setTextColor(c, b, bgfill);
-}
-
-uint16_t ScreenManager::color565(uint8_t r, uint8_t g, uint8_t b) {
-    return m_tft.color565(r, g, b);
-}
-
-void ScreenManager::setCursor(int16_t x, int16_t y) {
-    m_tft.setCursor(x, y);
-}
-
-void ScreenManager::setTextSize(uint8_t s) {
-    m_tft.setTextSize(s);
-}
-
-void ScreenManager::print(String s) {
-    m_tft.print(s);
-}
-void ScreenManager::print(char c) {
-    m_tft.print(c);
-}
-
 // Static function to be used in TJpgDec callback
 bool ScreenManager::tftOutput(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap) {
     if (instance == nullptr) {
-        Log.warningln("TFT_Output not possible, ScreenManager instance not initialized");
+        Serial.println("TFT_Output not possible, ScreenManager instance not initialized");
         return false;
     }
     uint8_t brightness = instance->getBrightness();
@@ -400,4 +366,17 @@ JRESULT ScreenManager::drawFsJpg(int32_t x, int32_t y, const char *filename, uin
     // Reset image color
     m_imageColor = 0;
     return result;
+}
+
+void ScreenManager::S_pushSprite(int32_t x, int32_t y) {
+    m_spr.pushSprite(x, y);
+}
+void ScreenManager::S_fillSprite(uint32_t color) {
+    m_spr.fillSprite(dim(color));
+}
+void ScreenManager::S_fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, uint32_t color) {
+    m_spr.fillRoundRect(x, y, w, h, r, dim(color));
+}
+void ScreenManager::S_fillCircle(int32_t x, int32_t y, int32_t r, uint32_t color) {
+    m_spr.fillCircle(x, y, r, dim(color));
 }

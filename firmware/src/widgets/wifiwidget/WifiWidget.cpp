@@ -1,7 +1,6 @@
 #include "WifiWidget.h"
 #include "OrbsWiFiManager.h"
 #include "Utils.h"
-#include <ArduinoLog.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
 
@@ -61,20 +60,12 @@ void WifiWidget::setup() {
     m_wifiManager.setCleanConnect(true);
     m_wifiManager.setConnectRetries(5);
 
-    // Set hostname to InfoOrbs-<last 6 digits of MAC address> so it can be found on the network
-    String mac = WiFi.macAddress();
-    mac.replace(":", "");
-    String hostname = "InfoOrbs-" + mac.substring(mac.length() - 6);
-    m_wifiManager.setHostname(hostname);
-
-    Log.noticeln("Hostname: %s", hostname.c_str());
-
     // WiFiManager automatically connects using saved credentials...
     if (m_wifiManager.autoConnect(m_apssid.c_str())) {
-        Log.infoln("WifiManager connected.");
+        Serial.print("WifiManager connected.");
     } else { // ...if connection fails (no saved credentials), it starts an access point with a WiFi setup portal at 192.168.4.1
         m_configPortalRunning = true;
-        Log.infoln("Configuration portal running.");
+        Serial.println("Configuration portal running.");
         m_manager.selectScreen(statusScreenIndex);
         m_manager.clearScreen();
         m_manager.drawCentreString("Configure", ScreenCenterX, ScreenCenterY - lineHeight, fontSize);
@@ -99,16 +90,17 @@ void WifiWidget::update(bool force) {
         m_isConnected = true;
         m_connectionString = "Connected";
         m_ipaddress = WiFi.localIP().toString();
-        Log.infoln("IP address: %s", m_ipaddress.c_str());
+        Serial.print("IP address: ");
+        Serial.println(m_ipaddress);
         // Start the WebPortal
         m_wifiManager.startWebPortal();
 #ifdef INCLUDE_MDNS
         // Initialize mDNS
-        String mDNSname = m_wifiManager.getWiFiHostname();
+        String mDNSname = m_apssid + "-" + WiFi.macAddress().substring(15);
         if (!MDNS.begin(mDNSname)) {
-            Log.warningln("Error setting up MDNS responder!");
+            Serial.println("Error setting up MDNS responder!");
         } else {
-            Log.infoln("mDNS responder started. You should find this device at http://%s\n", mDNSname.c_str());
+            Serial.printf("mDNS responder started. You should find this device at http://%s\n", mDNSname.c_str());
         }
         MDNS.addService("http", "tcp", 80);
 #endif
@@ -142,7 +134,8 @@ void WifiWidget::draw(bool force) {
         m_manager.clearScreen();
         m_manager.drawCentreString("IP Address", ScreenCenterX, ScreenCenterY - lineHeight, fontSize);
         m_manager.drawCentreString(m_ipaddress, ScreenCenterX, ScreenCenterY + lineHeight, fontSize);
-        Log.infoln("Connected to WiFi");
+        Serial.println();
+        Serial.println("Connected to WiFi");
         delay(messageDelay);
     } else if (m_connectionFailed && !m_hasDisplayedError) {
         m_hasDisplayedError = true;

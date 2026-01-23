@@ -33,8 +33,6 @@ public:
     String getPercentChange(int8_t digits);
     bool isChanged();
     StockDataModel &setChangedStatus(bool changed);
-    bool isInitialized();
-    StockDataModel &setInitializationStatus(bool initialized);
 
 private:
     String m_symbol = "";
@@ -50,7 +48,6 @@ private:
     float m_priceChange = 0.0;
     float m_percentChange = 0.0;
     bool m_changed = false;
-    bool m_initialized = false;
 };
 
 #endif // STOCK_DATA_MODEL_H

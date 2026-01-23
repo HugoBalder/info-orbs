@@ -1,6 +1,5 @@
 #include "Utils.h"
 #include "config_helper.h"
-#include <ArduinoLog.h>
 #include <TFT_eSPI.h>
 #include <cstring>
 
@@ -139,7 +138,8 @@ int32_t Utils::stringToColor(String color) {
     } else if (color == "vilolet") {
         return TFT_VIOLET;
     } else {
-        Log.warningln("Invalid color: %s", color);
+        Serial.print("Invalid color: ");
+        Serial.println(color);
         return TFT_BLACK;
     }
 }

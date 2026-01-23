@@ -22,23 +22,17 @@ public:
     bool initialUpdateDone();
     void initializeAllWidgetsData();
     void setClearScreensOnDrawCurrent();
-    bool isItTimeToDraw();
-    bool isItTimeToUpdate();
 
 private:
     void showCenteredLine(int screen, const String &text);
     ScreenManager *m_screenManager;
     bool m_clearScreensOnDrawCurrent = true;
     Widget *m_widgets[MAX_WIDGETS];
-    uint8_t m_widgetCount = 0;
-    uint8_t m_currentWidget = 0;
+    int8_t m_widgetCount = 0;
+    int8_t m_currentWidget = 0;
 
     bool m_initialized = false;
 
     void switchWidget();
-
-protected:
-    WidgetTimer *m_drawTimer = nullptr;
-    WidgetTimer *m_updateTimer = nullptr;
 };
 #endif // WIDGET_SET_H

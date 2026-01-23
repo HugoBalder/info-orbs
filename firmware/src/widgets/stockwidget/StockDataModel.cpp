@@ -139,12 +139,3 @@ StockDataModel &StockDataModel::setChangedStatus(bool changed) {
     m_changed = changed;
     return *this;
 }
-
-bool StockDataModel::isInitialized() {
-    return m_initialized;
-}
-
-StockDataModel &StockDataModel::setInitializationStatus(bool initialized) {
-    m_initialized = initialized;
-    return *this;
-}

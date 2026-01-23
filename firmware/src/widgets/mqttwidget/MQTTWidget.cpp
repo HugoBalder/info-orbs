@@ -1,6 +1,4 @@
 #include "MQTTWidget.h"
-#include "MQTTTranslations.h"
-#include <ArduinoLog.h>
 
 // Initialize the static instance pointer
 MQTTWidget *MQTTWidget::instance = nullptr;
@@ -14,10 +12,7 @@ void MQTTWidget::staticCallback(char *topic, byte *payload, unsigned int length)
 
 // Constructor
 MQTTWidget::MQTTWidget(ScreenManager &manager, ConfigManager &config)
-    : Widget(manager, config),
-      m_drawTimer(addDrawRefreshFrequency(MQTT_DRAW_DELAY)),
-      m_updateTimer(addUpdateRefreshFrequency(MQTT_UPDATE_DELAY)),
-      mqttClient(wifiClient) {
+    : Widget(manager, config), mqttClient(wifiClient) {
 
     // Assign the current instance to the static pointer
     instance = this;
@@ -39,12 +34,12 @@ MQTTWidget::MQTTWidget(ScreenManager &manager, ConfigManager &config)
     mqttPass = MQTT_WIDGET_PASS;
 #endif
 
-    m_config.addConfigBool("MqttWidget", "mqttEnabled", &m_enabled, t_enableWidget);
-    m_config.addConfigString("MqttWidget", "mqttHost", &mqttHost, 30, t_mqttHost, true);
-    m_config.addConfigInt("MqttWidget", "mqttPort", &mqttPort, t_mqttPort, true);
-    m_config.addConfigString("MqttWidget", "mqttSetupTopic", &mqttSetupTopic, 100, t_mqttSetupTopic, true);
-    m_config.addConfigString("MqttWidget", "mqttUser", &mqttUser, 20, t_mqttUser, true);
-    m_config.addConfigString("MqttWidget", "mqttPass", &mqttPass, 50, t_mqttPass, true);
+    m_config.addConfigBool("MqttWidget", "mqttEnabled", &m_enabled, "Enable Widget");
+    m_config.addConfigString("MqttWidget", "mqttHost", &mqttHost, 30, "MQTT Host", true);
+    m_config.addConfigInt("MqttWidget", "mqttPort", &mqttPort, "MQTT Port", true);
+    m_config.addConfigString("MqttWidget", "mqttSetupTopic", &mqttSetupTopic, 100, "MQTT Setup Topic", true);
+    m_config.addConfigString("MqttWidget", "mqttUser", &mqttUser, 20, "MQTT user (empty if authentication is not required)", true);
+    m_config.addConfigString("MqttWidget", "mqttPass", &mqttPass, 50, "MQTT pass (empty if authentication is not required)", true);
 
     // Set MQTT broker server and port
     mqttClient.setServer(mqttHost.c_str(), mqttPort);
@@ -112,7 +107,7 @@ uint16_t MQTTWidget::getColorFromString(const String &colorStr) {
 
 // Setup method
 void MQTTWidget::setup() {
-    //    Log.traceln("Inside setup method");
+    //    Serial.println("Inside setup method");
     /*
         // Initialize MQTT connection
         reconnect();
@@ -120,7 +115,7 @@ void MQTTWidget::setup() {
         // Subscribe to the setup topic
         if (mqttClient.connected()) {
             mqttClient.subscribe(MQTT_SETUP_TOPIC);
-            Log.traceln("Subscribed to setup topic1: %s", MQTT_SETUP_TOPIC.c_str());
+            Serial.println("Subscribed to setup topic1: " + String(MQTT_SETUP_TOPIC));
         }
         // Additional setup (e.g., initializing display elements) can be added here
     */
@@ -128,7 +123,7 @@ void MQTTWidget::setup() {
 
 // Update method
 void MQTTWidget::update(bool force) {
-    //    Log.traceln("Inside update method - %s" + mqttClient.connected().c_str());
+    //    Serial.println("Inside update method - " + String(mqttClient.connected()));
 
     if (!mqttClient.connected()) {
         reconnect();
@@ -162,7 +157,10 @@ void MQTTWidget::callback(char *topic, byte *payload, unsigned int length) {
     }
 
     String receivedTopic = String(topic);
-    Log.traceln("Message arrived [%s]: %s", receivedTopic.c_str(), message.c_str());
+    Serial.print("Message arrived [");
+    Serial.print(receivedTopic);
+    Serial.print("]: ");
+    Serial.println(message);
 
     if (receivedTopic.equals(mqttSetupTopic.c_str())) {
         handleSetupMessage(message);
@@ -185,7 +183,8 @@ void MQTTWidget::callback(char *topic, byte *payload, unsigned int length) {
                     JsonDocument dataDoc;
                     DeserializationError dataError = deserializeJson(dataDoc, message);
                     if (dataError) {
-                        Log.errorln("Failed to parse data JSON: %s", dataError.c_str());
+                        Serial.print("Failed to parse data JSON: ");
+                        Serial.println(dataError.c_str());
                         return;
                     }
 
@@ -208,7 +207,7 @@ void MQTTWidget::callback(char *topic, byte *payload, unsigned int length) {
                             if (fieldValue.is<JsonArray>()) {
                                 fieldValue = fieldValue[index]; // Access the array element by index
                             } else {
-                                Log.errorln("Error: Expected an array for %s", token);
+                                Serial.println("Error: Expected an array for " + String(token));
                                 return;
                             }
                         } else {
@@ -238,46 +237,47 @@ void MQTTWidget::callback(char *topic, byte *payload, unsigned int length) {
 
                             // Update the display only if the value has actually changed
                             it->second = extractedValue;
-                            Log.traceln("Parsed %s : %s", orb->jsonField.c_str(), extractedValue.c_str());
+                            Serial.println("Parsed " + orb->jsonField + ": " + extractedValue);
 
                             // Redraw the orb with updated data
                             drawOrb(orb->orbid);
                         } else {
-                            Log.traceln("No change detected for field: %s", orb->jsonField.c_str());
+                            Serial.println("No change detected for field: " + orb->jsonField);
                         }
                     } else {
-                        Log.warningln("JSON field '%s' not found in payload.", orb->jsonField.c_str());
+                        Serial.println("JSON field '" + orb->jsonField + "' not found in payload.");
                         return;
                     }
                 } else {
                     // The orb does not expect a JSON field; use the entire payload
                     if (it->second != message) {
                         it->second = message;
-                        Log.traceln("Updated data for %s : %s", receivedTopic.c_str(), message.c_str());
+                        Serial.println("Updated data for " + receivedTopic + ": " + message);
                         drawOrb(orb->orbid);
                     } else {
-                        Log.traceln("No change detected for topic: %s", receivedTopic.c_str());
+                        Serial.println("No change detected for topic: " + receivedTopic);
                     }
                 }
             } else {
-                Log.warningln("No orb configuration found for topic: %s", receivedTopic.c_str());
+                Serial.println("No orb configuration found for topic: " + receivedTopic);
             }
         } else {
-            Log.traceln("Received message for unknown topic: %s", receivedTopic.c_str());
+            Serial.println("Received message for unknown topic: " + receivedTopic);
         }
     }
 }
 
 // Handle setup message to configure orbs
 void MQTTWidget::handleSetupMessage(const String &message) {
-    //    Log.traceln("Handling setup message...");
+    //    Serial.println("Handling setup message...");
 
     // Parse JSON configuration
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, message);
 
     if (error) {
-        Log.errorln("Failed to parse setup JSON: %s", error.c_str());
+        Serial.print("Failed to parse setup JSON: ");
+        Serial.println(error.c_str());
         return;
     }
 
@@ -313,7 +313,7 @@ void MQTTWidget::handleSetupMessage(const String &message) {
         config.orbTextColor = getColorFromString(textColorStr);
 
         orbConfigs.push_back(config);
-        Log.infoln("Configured Orb: %d -> %s", config.orbid, config.orbdesc.c_str());
+        Serial.println("Configured Orb: " + String(config.orbid) + " -> " + config.orbdesc);
 
         // Initialize data map with empty strings
         orbDataMap[config.topicSrc] = "";
@@ -330,14 +330,14 @@ void MQTTWidget::handleSetupMessage(const String &message) {
 
 // Subscribe to all orb topics
 void MQTTWidget::subscribeToOrbs() {
-    //    Log.traceln("Inside subscribeToOrbs method");
+    //    Serial.println("Inside subscribeToOrbs method");
 
     for (const auto &orb : orbConfigs) {
         bool success = mqttClient.subscribe(orb.topicSrc.c_str());
         if (success) {
-            Log.traceln("Subscribed to topic: %s", orb.topicSrc.c_str());
+            Serial.println("Subscribed to topic: " + orb.topicSrc);
         } else {
-            Log.warningln("Failed to subscribe to topic: %s", orb.topicSrc.c_str());
+            Serial.println("Failed to subscribe to topic: " + orb.topicSrc);
         }
     }
 }
@@ -345,7 +345,7 @@ void MQTTWidget::subscribeToOrbs() {
 #define RECONNECT_INTERVAL 5000
 // Handle MQTT reconnection
 void MQTTWidget::reconnect() {
-    //    Log.traceln("Inside reconnect method");
+    //    Serial.println("Inside reconnect method");
 
     // Loop until reconnected
     if (!mqttClient.connected()) {
@@ -355,7 +355,7 @@ void MQTTWidget::reconnect() {
             return;
         }
 
-        Log.traceln("Attempting MQTT connection...");
+        Serial.println("Attempting MQTT connection...");
         lastReconnectAttempt = now;
 
         // Generate a random client ID
@@ -368,32 +368,33 @@ void MQTTWidget::reconnect() {
         if (!mqttUser.empty() && !mqttPass.empty()) {
             // Attempt to connect with username and password
             connected = mqttClient.connect(clientId.c_str(), mqttUser.c_str(), mqttPass.c_str());
-            Log.traceln("Attempting MQTT connection with authentication...");
+            Serial.println("Attempting MQTT connection with authentication...");
         } else {
             // Attempt to connect without authentication
             connected = mqttClient.connect(clientId.c_str());
-            Log.traceln("Attempting MQTT connection without authentication...");
+            Serial.println("Attempting MQTT connection without authentication...");
         }
 
         // Check the result of the connection attempt
         if (connected) {
-            Log.traceln("MQTT connected");
+            Serial.println("MQTT connected");
             // Once connected, subscribe to the setup topic
             if (mqttClient.subscribe(mqttSetupTopic.c_str())) {
-                Log.traceln("Subscribed to setup topic2: %s", mqttSetupTopic.c_str());
+                Serial.println("Subscribed to setup topic2: " + String(mqttSetupTopic.c_str()));
             } else {
-                Log.warningln("Failed to subscribe to setup topic: %s", mqttSetupTopic.c_str());
+                Serial.println("Failed to subscribe to setup topic: " + String(mqttSetupTopic.c_str()));
             }
         } else {
-            Log.warningln("failed, rc=%d", mqttClient.state());
-            Log.warningln("try again in 5 seconds");
+            Serial.print("failed, rc=");
+            Serial.print(mqttClient.state());
+            Serial.println(" try again in 5 seconds");
         }
     }
 }
 
 // New method to draw a single orb based on orbid
 void MQTTWidget::drawOrb(int orbid) {
-    //    Log.traceln("Inside drawOrb method");
+    //    Serial.println("Inside drawOrb method");
 
     // Select the screen corresponding to the orbid
     m_manager.selectScreen(orbid);
@@ -408,7 +409,7 @@ void MQTTWidget::drawOrb(int orbid) {
     }
 
     if (orb == nullptr) {
-        Log.warningln("Orb not found for orbid: %d", orbid);
+        Serial.println("Orb not found for orbid: " + String(orbid));
         return;
     }
 

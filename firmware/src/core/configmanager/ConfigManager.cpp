@@ -4,7 +4,6 @@
 #include "Utils.h"
 #include "config_helper.h"
 #include "nvs_flash.h"
-#include <ArduinoLog.h>
 
 ConfigManager *ConfigManager::s_instance = nullptr;
 
@@ -25,29 +24,30 @@ static WiFiManagerParameter s_spanAdvancedStart(WEBPORTAL_PARAM_SPAN_ADVANCED_ST
 static WiFiManagerParameter s_spanEnd(WEBPORTAL_PARAM_SPAN_END);
 
 ConfigManager::ConfigManager(WiFiManager &wm) : m_wm(wm) {
-    Log.infoln("Constructing ConfigManager");
+    Serial.println("Constructing ConfigManager");
     if (!m_preferences.begin("config", false)) {
-        Log.warningln("Failed to initialize NVS in ConfigManager... erasing NVS");
+        Serial.println("Failed to initialize NVS in ConfigManager.");
+        Serial.println("...erasing NVS");
         nvs_flash_erase();
-        Log.infoln("...initializing NVS");
+        Serial.println("...initializing NVS");
         nvs_flash_init();
-        Log.infoln("Retrying to init preferences...");
+        Serial.println("Retrying to init preferences...");
         if (!m_preferences.begin("config", false)) {
-            Log.warningln("...it didn't work. Giving up.");
+            Serial.println("...it didn't work. Giving up.");
         } else {
-            Log.infoln("...it worked!");
+            Serial.println("...it worked!");
         }
     } else {
-        Log.infoln("NVS initialized successfully in ConfigManager");
+        Serial.println("NVS initialized successfully in ConfigManager");
         // Init pinMode for middle button (even if the buttons are not setup yet)
         pinMode(BUTTON_MIDDLE_PIN, BUTTON_MODE);
         if (digitalRead(BUTTON_MIDDLE_PIN) == Button::PRESSED_LEVEL) {
-            Log.infoln("Middle button pressed -> Clearing preferences...");
+            Serial.println("Middle button pressed -> Clearing preferences...");
             m_preferences.clear();
-            Log.infoln("...done");
+            Serial.println("...done");
         }
     }
-    Log.infoln("ConfigManager initialized");
+    Serial.println("ConfigManager initialized");
     s_instance = this;
 }
 
@@ -60,7 +60,7 @@ ConfigManager::~ConfigManager() {
 
 ConfigManager *ConfigManager::getInstance() {
     if (s_instance == nullptr) {
-        Log.errorln("ConfigManager.getInstance(): not initialized");
+        Serial.println("ERR in ConfigManager.getInstance(): not initialized");
     }
     return s_instance;
 }
@@ -73,10 +73,10 @@ void ConfigManager::setupWebPortal() {
     bool advancedOpen = false;
     for (auto &param : m_parameters) {
 #ifdef CM_DEBUG
-        Log.traceln("Adding WebPortal parameter: %s, %s", param.section, param.variableName);
+        Serial.printf("Adding WebPortal parameter: %s, %s\n", param.section, param.variableName);
 #endif
         if (strcmp(lastSection, param.section) != 0) {
-            Log.infoln("New config section: %s", param.section);
+            Serial.printf("New config section: %s\n", param.section);
             if (advancedOpen) {
                 // close advanced params span
                 m_wm.addParameter(&s_spanEnd);
@@ -120,18 +120,18 @@ void ConfigManager::setupWebPortal() {
     m_wm.setSaveParamsCallback([this]() {
         int count = m_wm.server->args();
 #ifdef CM_DEBUG
-        Log.traceln("Variables saved in WebPortal");
+        Serial.println("Variables saved in WebPortal");
         for (int i = 0; i < count; i++) {
-            Log.traceln("Arg %d: %s = %s", i, m_wm.server->argName(i).c_str(), m_wm.server->arg(i).c_str());
+            Serial.printf("Arg %d: %s = %s\n", i, m_wm.server->argName(i).c_str(), m_wm.server->arg(i).c_str());
         }
 #endif
         if (count > 0) {
             saveAllConfigs();
-            Log.infoln("%d config values saved.", count);
+            Serial.printf("%d config values saved.\n", count);
             // Restart to apply new config
             m_requiresRestart = true;
         } else {
-            Log.infoln("No config values to save found. Skipping.");
+            Serial.println("No confg values to save found. Skipping.");
         }
     });
 }
@@ -149,7 +149,7 @@ std::string ConfigManager::makeKey(const char *section, const char *varName) {
 
 void ConfigManager::triggerChangeCallbacks(const char *section, const char *varName) {
 #ifdef CM_DEBUG
-    Log.traceln("triggerChangeCallbacks, c=%s, v=%s", section, varName);
+    Serial.printf("triggerChangeCallbacks, c=%s, v=%s\n", section, varName);
 #endif
     std::string key = makeKey(section, varName);
     if (varName[0] != '\0' && m_changeCallbacks.count(key)) {
@@ -173,7 +173,7 @@ void ConfigManager::addConfig(ParamType paramType, const char *section, const ch
     loadFromPreferences(*var);
 
 #ifdef CM_DEBUG
-    Log.traceln("%s loaded %d (@%p)", varName, *var, var);
+    Serial.printf("%s loaded %d (@%p)\n", varName, *var, var);
 #endif
 
     // Create parameter with additional arguments if needed
@@ -186,14 +186,14 @@ void ConfigManager::addConfig(ParamType paramType, const char *section, const ch
         saveToPreferences(*var);
 #ifdef CM_DEBUG
         // Debugging output
-        Log.traceln("%s saved %d (@%p)", varName, *var, var);
+        Serial.printf("%s saved %d (@%p)\n", varName, *var, var);
 #endif
     };
 
     m_parameters.push_back({param, paramType, section, varName, advanced, saveLambda});
 }
 
-void ConfigManager::addConfigString(const char *section, const char *varName, std::string *var, const size_t length, const char *description, const bool advanced) {
+void ConfigManager::addConfigString(const char *section, const char *varName, std::string *var, size_t length, const char *description, bool advanced) {
     addConfig<std::string, StringParameter>(
         ParamType::String, section, varName, var, description, length, advanced,
         [this, varName](std::string &var) { var = m_preferences.getString(varName, var.c_str()).c_str(); },
@@ -201,11 +201,7 @@ void ConfigManager::addConfigString(const char *section, const char *varName, st
         [this, varName](std::string &var) { m_preferences.putString(varName, var.c_str()); });
 }
 
-void ConfigManager::addConfigString(const char *section, const char *varName, std::string *var, const size_t length, Translation &description, const bool advanced) {
-    addConfigString(section, varName, var, length, i18n(description), advanced);
-}
-
-void ConfigManager::addConfigInt(const char *section, const char *varName, int *var, const char *description, const bool advanced) {
+void ConfigManager::addConfigInt(const char *section, const char *varName, int *var, const char *description, bool advanced) {
     addConfig<int, IntParameter>(
         ParamType::Int, section, varName, var, description, 10, advanced,
         [this, varName](int &var) { var = m_preferences.getInt(varName, var); },
@@ -213,11 +209,7 @@ void ConfigManager::addConfigInt(const char *section, const char *varName, int *
         [this, varName](int &var) { m_preferences.putInt(varName, var); });
 }
 
-void ConfigManager::addConfigInt(const char *section, const char *varName, int *var, Translation &description, const bool advanced) {
-    addConfigInt(section, varName, var, i18n(description), advanced);
-}
-
-void ConfigManager::addConfigBool(const char *section, const char *varName, bool *var, const char *description, const bool advanced) {
+void ConfigManager::addConfigBool(const char *section, const char *varName, bool *var, const char *description, bool advanced) {
     addConfig<bool, BoolParameter>(
         ParamType::Bool, section, varName, var, description, 2, advanced,
         [this, varName](bool &var) { var = m_preferences.getBool(varName, var); },
@@ -225,11 +217,7 @@ void ConfigManager::addConfigBool(const char *section, const char *varName, bool
         [this, varName](bool &var) { m_preferences.putBool(varName, var); });
 }
 
-void ConfigManager::addConfigBool(const char *section, const char *varName, bool *var, Translation &description, const bool advanced) {
-    addConfigBool(section, varName, var, i18n(description), advanced);
-}
-
-void ConfigManager::addConfigFloat(const char *section, const char *varName, float *var, const char *description, const bool advanced) {
+void ConfigManager::addConfigFloat(const char *section, const char *varName, float *var, const char *description, bool advanced) {
     addConfig<float, FloatParameter>(
         ParamType::Float, section, varName, var, description, 10, advanced,
         [this, varName](float &var) { var = m_preferences.getFloat(varName, var); },
@@ -237,11 +225,7 @@ void ConfigManager::addConfigFloat(const char *section, const char *varName, flo
         [this, varName](float &var) { m_preferences.putFloat(varName, var); });
 }
 
-void ConfigManager::addConfigFloat(const char *section, const char *varName, float *var, Translation &description, const bool advanced) {
-    addConfigFloat(section, varName, var, i18n(description), advanced);
-}
-
-void ConfigManager::addConfigColor(const char *section, const char *varName, int *var, const char *description, const bool advanced) {
+void ConfigManager::addConfigColor(const char *section, const char *varName, int *var, const char *description, bool advanced) {
     addConfig<int, ColorParameter>(
         ParamType::Color, section, varName, var, description, 8, advanced,
         [this, varName](int &var) { var = m_preferences.getInt(varName, var); },
@@ -249,11 +233,7 @@ void ConfigManager::addConfigColor(const char *section, const char *varName, int
         [this, varName](int &var) { m_preferences.putInt(varName, var); });
 }
 
-void ConfigManager::addConfigColor(const char *section, const char *varName, int *var, Translation &description, const bool advanced) {
-    addConfigColor(section, varName, var, i18n(description), advanced);
-}
-
-void ConfigManager::addConfigComboBox(const char *section, const char *varName, int *var, String options[], const int numOptions, const char *description, const bool advanced) {
+void ConfigManager::addConfigComboBox(const char *section, const char *varName, int *var, String options[], int numOptions, const char *description, bool advanced) {
     addConfig<int, ComboBoxParameter>(
         ParamType::ComboBox, section, varName, var, description, 0, advanced,
         [this, varName](int &var) { var = m_preferences.getInt(varName, var); },
@@ -264,23 +244,19 @@ void ConfigManager::addConfigComboBox(const char *section, const char *varName, 
     );
 }
 
-void ConfigManager::addConfigComboBox(const char *section, const char *varName, int *var, String options[], const int numOptions, Translation &description, const bool advanced) {
-    addConfigComboBox(section, varName, var, options, numOptions, i18n(description), advanced);
-}
-
-std::string ConfigManager::getConfigString(const char *varName, const std::string &defaultValue) {
+std::string ConfigManager::getConfigString(const char *varName, std::string defaultValue) {
     return m_preferences.getString(varName, defaultValue.c_str()).c_str();
 }
 
-bool ConfigManager::getConfigBool(const char *varName, const bool defaultValue) {
+bool ConfigManager::getConfigBool(const char *varName, bool defaultValue) {
     return m_preferences.getBool(varName, defaultValue);
 }
 
-int ConfigManager::getConfigInt(const char *varName, const int defaultValue) {
+int ConfigManager::getConfigInt(const char *varName, int defaultValue) {
     return m_preferences.getInt(varName, defaultValue);
 }
 
-float ConfigManager::getConfigFloat(const char *varName, const float defaultValue) {
+float ConfigManager::getConfigFloat(const char *varName, float defaultValue) {
     return m_preferences.getFloat(varName, defaultValue);
 }
 

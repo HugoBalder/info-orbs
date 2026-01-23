@@ -31,17 +31,7 @@
 #endif
 
 #define PARQET_MODE_COUNT 10
-#define PARQET_PERF_COUNT 6
-#define PARQET_PERF_CHART_COUNT 4
 #define PARQET_MAX_STOCKNAME_LINES 3
-
-#ifndef PARQET_PORTFOLIO_ID
-    #define PARQET_PORTFOLIO_ID ""
-#endif
-
-#ifndef PARQET_PROXY_URL
-    #define PARQET_PROXY_URL "https://parqet-proxy.ce-data.net/proxy"
-#endif
 
 class ParqetWidget : public Widget {
 public:
@@ -54,16 +44,17 @@ public:
 
 private:
     String getTimeframe();
-    String getPerfMeasure();
-    String getPerfChartMeasure();
     void updatePortfolio();
-    void processResponse(int httpCode, const String &response);
+    void updatePortfolioChart();
     void displayStock(int8_t displayIndex, ParqetHoldingDataModel &stock, uint32_t backgroundColor, uint32_t textColor);
     ParqetDataModel getPortfolio();
     void clearScreen(int8_t displayIndex, int32_t background);
     void displayClock(int8_t displayIndex, uint32_t background, uint32_t color, String extra, uint32_t extraColor);
 
     GlobalTime *m_time;
+
+    unsigned long m_stockDelay = 15 * 60 * 1000; // default to 15m between updates
+    unsigned long m_stockDelayPrev = 0;
 
     unsigned long m_cycleDelay = 30 * 1000; // cycle through pages (for more than 4/5 stocks) every 30 seconds
     unsigned long m_cycleDelayPrev = 0;
@@ -75,14 +66,6 @@ private:
     int m_defaultMode = 0;
     int m_curMode = 0;
 
-    String m_perfMeasures[PARQET_PERF_COUNT] = {"totalReturnGross", "totalReturnNet", "returnGross", "returnNet", "ttwror", "izf"};
-    int m_defaultPerfMeasure = 0;
-    int m_curPerfMeasure = 0;
-
-    String m_perfChartMeasures[PARQET_PERF_CHART_COUNT] = {"perfHistory", "perfHistoryUnrealized", "ttwror", "drawdown"};
-    int m_defaultPerfChartMeasure = 0;
-    int m_curPerfChartMeasure = 0;
-
     boolean m_showClock = true; // Show clock on first screen
     boolean m_showTotalScreen = true; // Show a total portfolio screen
     boolean m_showTotalValue = false; // Show your total portfolio value
@@ -90,22 +73,14 @@ private:
     String m_overrideTotalChartToday = "1w"; // Show this chart for "today" to have a chart there as well, set to empty string to disable
     int m_showValues = 0; // Show current price (0) or value in portfolio (1)
 
+#ifdef PARQET_PORTFOLIO_ID
     std::string m_portfolioId = PARQET_PORTFOLIO_ID;
-    std::string m_proxyUrl = PARQET_PROXY_URL;
+#else
+    std::string m_portfolioId = "";
+#endif
     ParqetDataModel m_portfolio;
     int m_holdingsDisplayFrom = 0;
     boolean m_changed = false;
     boolean m_everDrawn = false; // Track if our widget was ever drawn (to distinguish between an onboot and an onwidget update)
-
-    WidgetTimer &m_drawTimer;
-    WidgetTimer &m_updateTimer;
-
-#ifndef PARQET_UPDATE_DELAY
-    #define PARQET_UPDATE_DELAY TimeFrequency::FifteenMinutes
-#endif
-
-#ifndef PARQET_DRAW_DELAY
-    #define PARQET_DRAW_DELAY TimeFrequency::ThirtySeconds
-#endif
 };
 #endif // PARQET_WIDGET_H
