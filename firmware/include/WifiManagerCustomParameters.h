@@ -109,7 +109,7 @@ class FloatParameter : public WiFiManagerParameter {
     using WiFiManagerParameter::getValue; // make parent function private
 public:
     FloatParameter(const char *id, const char *placeholder, float value, const uint8_t length = 10) {
-        init(id, placeholder, String(value, 4).c_str(), length, "", WFM_LABEL_BEFORE);
+        init(id, placeholder, String(value).c_str(), length, "", WFM_LABEL_BEFORE);
     }
 
     float getValue() {
