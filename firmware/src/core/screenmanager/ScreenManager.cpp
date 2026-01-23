@@ -1,8 +1,12 @@
 #include "ScreenManager.h"
+#include "ConfigManager.h"
 #include "Utils.h"
 #include <Arduino.h>
+#include <LittleFS.h>
 
-ScreenManager::ScreenManager(TFT_eSPI &tft) : m_tft(tft) {
+ScreenManager *ScreenManager::instance = nullptr;
+
+ScreenManager::ScreenManager(TFT_eSPI &tft, TFT_eSprite &spr) : m_tft(tft), m_spr(spr) {
 
     for (int i = 0; i < NUM_SCREENS; i++) {
         pinMode(m_screen_cs[i], OUTPUT);
@@ -10,14 +14,24 @@ ScreenManager::ScreenManager(TFT_eSPI &tft) : m_tft(tft) {
     }
 
     m_tft.init();
-    m_tft.setRotation(INVERTED_ORBS ? 2 : 0);
+    m_tft.setRotation(ConfigManager::getInstance()->getConfigInt("orbRotation", ORB_ROTATION));
     m_tft.fillScreen(TFT_WHITE);
     m_tft.setTextDatum(MC_DATUM);
     reset();
 
+    // Init Sprite
+    m_spr.createSprite(116, 224);
+    m_spr.fillSprite(TFT_BLACK);
+
+    // Init TJpg_Decode
+    TJpgDec.setSwapBytes(true); // JPEG rendering setup
+    TJpgDec.setJpgScale(1);
+    TJpgDec.setCallback(tftOutput);
+
     // I'm not sure which cache size is actually good.
-    // Needs testing.
-    m_render.setCacheSize(128, 128, 8192);
+    // It's a tradeoff between memory consumption and render speed.
+    // Needs more testing to find the sweet spot.
+    m_render.setCacheSize(8, 8, 4096);
     setFont(DEFAULT_FONT);
     m_render.setDrawer(m_tft);
 
@@ -33,6 +47,8 @@ ScreenManager::ScreenManager(TFT_eSPI &tft) : m_tft(tft) {
     Serial.println("SCREEN_3_CS:" + String(SCREEN_3_CS));
     Serial.println("SCREEN_4_CS:" + String(SCREEN_4_CS));
     Serial.println("SCREEN_5_CS:" + String(SCREEN_5_CS));
+
+    instance = this;
 }
 
 void ScreenManager::setFont(TTF_Font font) {
@@ -84,7 +100,9 @@ OpenFontRender &ScreenManager::getRender() {
 // Selects a single screen
 void ScreenManager::selectScreen(int screen) {
     for (int i = 0; i < NUM_SCREENS; i++) {
-        int currentDisplay = INVERTED_ORBS ? NUM_SCREENS - i - 1 : i;
+        int orbRotation = ConfigManager::getInstance()->getConfigInt("orbRotation", ORB_ROTATION);
+        bool rotateDisplays = orbRotation == 1 || orbRotation == 2;
+        int currentDisplay = rotateDisplays ? NUM_SCREENS - i - 1 : i;
         digitalWrite(m_screen_cs[currentDisplay], i == screen ? LOW : HIGH);
     }
 }
@@ -303,4 +321,62 @@ void ScreenManager::drawLegacyString(const String &string, int32_t x, int32_t y,
 
 int16_t ScreenManager::drawLegacyChar(uint16_t uniCode, int32_t x, int32_t y, uint8_t font) {
     return m_tft.drawChar(uniCode, x, y, font);
+}
+
+// Static function to be used in TJpgDec callback
+bool ScreenManager::tftOutput(int16_t x, int16_t y, uint16_t w, uint16_t h, uint16_t *bitmap) {
+    if (instance == nullptr) {
+        Serial.println("TFT_Output not possible, ScreenManager instance not initialized");
+        return false;
+    }
+    uint8_t brightness = instance->getBrightness();
+    uint32_t imageColor = instance->m_imageColor;
+    TFT_eSPI &tft = instance->getDisplay();
+    if (y >= tft.height() || x >= tft.width())
+        return 0;
+    if (imageColor != 0) {
+        // We have an image color set, let's use it
+        Utils::colorizeImageData(bitmap, w * h, imageColor, 1.25, true);
+    }
+    if (brightness != 255) {
+        // Dim bitmap
+        Utils::rgb565dimBitmap(bitmap, w * h, brightness, true);
+    }
+    tft.pushImage(x, y, w, h, bitmap);
+    return true;
+}
+
+JRESULT ScreenManager::drawJpg(int32_t x, int32_t y, const uint8_t jpeg_data[], uint32_t data_size, uint8_t scale, uint32_t imageColor) {
+    // Set scale
+    TJpgDec.setJpgScale(scale);
+    // Set image color
+    m_imageColor = imageColor;
+    JRESULT result = TJpgDec.drawJpg(x, y, jpeg_data, data_size);
+    // Reset image color
+    m_imageColor = 0;
+    return result;
+}
+
+JRESULT ScreenManager::drawFsJpg(int32_t x, int32_t y, const char *filename, uint8_t scale, uint32_t imageColor) {
+    // Set scale
+    TJpgDec.setJpgScale(scale);
+    // Set image color
+    m_imageColor = imageColor;
+    JRESULT result = TJpgDec.drawFsJpg(x, y, filename, LittleFS);
+    // Reset image color
+    m_imageColor = 0;
+    return result;
+}
+
+void ScreenManager::S_pushSprite(int32_t x, int32_t y) {
+    m_spr.pushSprite(x, y);
+}
+void ScreenManager::S_fillSprite(uint32_t color) {
+    m_spr.fillSprite(dim(color));
+}
+void ScreenManager::S_fillRoundRect(int32_t x, int32_t y, int32_t w, int32_t h, int32_t r, uint32_t color) {
+    m_spr.fillRoundRect(x, y, w, h, r, dim(color));
+}
+void ScreenManager::S_fillCircle(int32_t x, int32_t y, int32_t r, uint32_t color) {
+    m_spr.fillCircle(x, y, r, dim(color));
 }

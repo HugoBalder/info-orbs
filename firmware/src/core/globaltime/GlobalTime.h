@@ -1,8 +1,8 @@
-#ifndef TIME_H
-#define TIME_H
+
+#ifndef GLOBALTIME_H
+#define GLOBALTIME_H
 
 #include "config_helper.h"
-#include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <NTPClient.h>
 #include <TimeLib.h>
@@ -13,12 +13,12 @@
 #define FR 2
 
 #if LOCALE == DE // German
-const char LOC_MONTH[12][10] = {"Januar", "Februar", "Maerz", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"}; // Define german for month
+const char LOC_MONTH[12][10] = {"Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"}; // Define german for month
 const char LOC_WEEKDAY[7][11] = {"Sonntag", "Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"}; // Define german for weekday
 const String LOC_FORMAT_DAYMONTH = "%d. %B"; // in strftime format
 const String LOC_LANG = "de";
 #elif LOCALE == FR // French
-const char LOC_MONTH[12][10] = {"Janvier", "Fevrier", "Mars", "Avril", "Mai", "Juin", "Juillet", "Aout", "Septembre", "Octobre", "Novembre", "Decembre"}; // Define french for month
+const char LOC_MONTH[12][10] = {"Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"}; // Define french for month
 const char LOC_WEEKDAY[7][11] = {"Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"}; // Define french for weekday
 const String LOC_FORMAT_DAYMONTH = "%d %B"; // in strftime format
 const String LOC_LANG = "fr";
@@ -29,11 +29,27 @@ const String LOC_FORMAT_DAYMONTH = "%d %B"; // in strftime format, this will be 
 const String LOC_LANG = "en";
 #endif
 
+enum ClockFormat {
+    CLOCK_FORMAT_24_HOUR = 0,
+    CLOCK_FORMAT_12_HOUR = 1,
+    CLOCK_FORMAT_12_HOUR_AMPM = 2
+};
+
+#if FORMAT_24_HOUR == true
+    #define CLOCK_FORMAT CLOCK_FORMAT_24_HOUR
+#else
+    #if SHOW_AM_PM_INDICATOR == false
+        #define CLOCK_FORMAT CLOCK_FORMAT_12_HOUR
+    #else
+        #define CLOCK_FORMAT CLOCK_FORMAT_12_HOUR_AMPM
+    #endif
+#endif
+
 class GlobalTime {
 public:
     static GlobalTime *getInstance();
 
-    void updateTime();
+    void updateTime(bool force = false);
     void getHourAndMinute(int &hour, int &minute);
     int getHour();
     int getHour24();
@@ -70,6 +86,7 @@ private:
     int m_year = 0;
     String m_time;
     String m_weekday;
+    std::string m_timezoneLocation = TIMEZONE_API_LOCATION;
     int m_timeZoneOffset = -1; // A value that will be overwritten by the API
     unsigned long m_nextTimeZoneUpdate = 0;
 
@@ -80,8 +97,16 @@ private:
     unsigned long m_updateTimer = 0;
 
     bool m_format24hour{FORMAT_24_HOUR};
+    std::string m_ntpServer{NTP_SERVER};
 
     void getTimeZoneOffsetFromAPI();
+
+    bool b_usentp = CLOCK_USE_NTP;
+    unsigned long m_current_time = -1;
+    unsigned long m_last_update_time = 0;
+    unsigned long m_elapsed_seconds = 0;
+    unsigned long m_updated_time = 0;
+    int m_next_web_update_timer = 3600;
 };
 
-#endif
+#endif // GLOBALTIME_H

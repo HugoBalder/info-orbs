@@ -1,15 +1,18 @@
 #include "StockWidget.h"
-
-#include "config_helper.h"
+#include "TaskFactory.h"
 #include <ArduinoJson.h>
-#include <HTTPClient.h>
-
 #include <iomanip>
 
-StockWidget::StockWidget(ScreenManager &manager) : Widget(manager) {
-#ifdef STOCK_TICKER_LIST
-    char stockList[strlen(STOCK_TICKER_LIST) + 1];
-    strcpy(stockList, STOCK_TICKER_LIST);
+StockWidget::StockWidget(ScreenManager &manager, ConfigManager &config) : Widget(manager, config) {
+    m_enabled = true; // Enabled by default
+    m_config.addConfigBool("StockWidget", "stocksEnabled", &m_enabled, "Enable Widget");
+    config.addConfigString("StockWidget", "stockList", &m_stockList, 200,
+                           "Choose 5 securities to track. You can track forex, crypto (symbol/USD) or stocks from any exchange (if one ticker is part of multiple exchanges you can add on '&country = Canada' to narrow down to your ticker)");
+    char stockList[m_stockList.size()];
+    strcpy(stockList, m_stockList.c_str());
+
+    String stockchangeFormats[] = {"Percent", "Price"};
+    m_config.addConfigComboBox("StockWidget", "stockchgFmt", &m_stockchangeformat, stockchangeFormats, 2, "Show percent or price change", true);
 
     char *symbol = strtok(stockList, ",");
     m_stockCount = 0;
@@ -23,7 +26,6 @@ StockWidget::StockWidget(ScreenManager &manager) : Widget(manager) {
             break;
         }
     } while (symbol = strtok(nullptr, ","));
-#endif
 }
 
 void StockWidget::setup() {
@@ -45,35 +47,29 @@ void StockWidget::draw(bool force) {
 
 void StockWidget::update(bool force) {
     if (force || m_stockDelayPrev == 0 || (millis() - m_stockDelayPrev) >= m_stockDelay) {
-        setBusy(true);
+
+        // Queue requests for each stock
         for (int8_t i = 0; i < m_stockCount; i++) {
-            getStockData(m_stocks[i]);
+            //Mein API Key von schwarzfamilie.cloud@gmail.com ist 0507505fb3984f65bfa5ffceba94b356
+			String url = "https://api.twelvedata.com/quote?apikey=e03fc53524454ab8b65d91b23c669cc5&symbol=" + m_stocks[i].getSymbol();
+
+            StockDataModel &stock = m_stocks[i];
+
+            auto task = TaskFactory::createHttpGetTask(url, [this, &stock](int httpCode, const String &response) {
+                processResponse(stock, httpCode, response);
+            });
+
+            TaskManager::getInstance()->addTask(std::move(task));
         }
-        setBusy(false);
+
         m_stockDelayPrev = millis();
     }
 }
 
-void StockWidget::changeMode() {
-    update(true);
-}
-
-void StockWidget::buttonPressed(uint8_t buttonId, ButtonState state) {
-    if (buttonId == BUTTON_OK && state == BTN_SHORT)
-        changeMode();
-}
-
-void StockWidget::getStockData(StockDataModel &stock) {
-    String httpRequestAddress = "https://api.twelvedata.com/quote?apikey=e03fc53524454ab8b65d91b23c669cc5&symbol=" + stock.getSymbol();
-
-    HTTPClient http;
-    http.begin(httpRequestAddress);
-    int httpCode = http.GET();
-
-    if (httpCode > 0) { // Check for the returning code
-        String payload = http.getString();
+void StockWidget::processResponse(StockDataModel &stock, int httpCode, const String &response) {
+    if (httpCode > 0) {
         JsonDocument doc;
-        DeserializationError error = deserializeJson(doc, payload);
+        DeserializationError error = deserializeJson(doc, response);
 
         if (!error) {
             float currentPrice = doc["close"].as<float>();
@@ -90,15 +86,20 @@ void StockWidget::getStockData(StockDataModel &stock) {
                 Serial.println("skipping invalid data for: " + stock.getSymbol());
             }
         } else {
-            // Handle JSON deserialization error
             Serial.println("deserializeJson() failed");
         }
     } else {
-        // Handle HTTP request error
-        Serial.printf("HTTP request failed, error: %s\n", http.errorToString(httpCode).c_str());
+        Serial.printf("HTTP request failed, error: %d\n", httpCode);
     }
+}
 
-    http.end();
+void StockWidget::changeMode() {
+    update(true);
+}
+
+void StockWidget::buttonPressed(uint8_t buttonId, ButtonState state) {
+    if (buttonId == BUTTON_OK && state == BTN_SHORT)
+        changeMode();
 }
 
 void StockWidget::displayStock(int8_t displayIndex, StockDataModel &stock, uint32_t backgroundColor, uint32_t textColor) {
@@ -137,7 +138,11 @@ void StockWidget::displayStock(int8_t displayIndex, StockDataModel &stock, uint3
         m_manager.fillTriangle(110 + arrowOffsetX, 132 + arrowOffsetY, 130 + arrowOffsetX, 132 + arrowOffsetY, 120 + arrowOffsetX, 120 + arrowOffsetY, TFT_GREEN);
         m_manager.drawArc(centre, centre, 120, 118, 0, 360, TFT_GREEN, TFT_GREEN);
     }
-    m_manager.drawString(stock.getPercentChange(2) + "%", centre, 48, bigFontSize, Align::MiddleCenter);
+    if (!m_stockchangeformat) {
+        m_manager.drawString(stock.getPercentChange(2) + "%", centre, 48, bigFontSize, Align::MiddleCenter);
+    } else {
+        m_manager.drawString(stock.getCurrencySymbol() + stock.getPriceChange(2), centre, 48, bigFontSize, Align::MiddleCenter);
+    }
     // Draw stock data
     m_manager.setFontColor(TFT_BLACK, TFT_WHITE);
 

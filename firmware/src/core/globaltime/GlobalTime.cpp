@@ -1,14 +1,22 @@
+
 #include "GlobalTime.h"
 
+#include "ConfigManager.h"
 #include "config_helper.h"
-#include <TimeLib.h>
+#include <ArduinoJson.h>
 
 GlobalTime *GlobalTime::m_instance = nullptr;
 
 GlobalTime::GlobalTime() {
-    m_timeClient = new NTPClient(m_udp);
+    ConfigManager *cm = ConfigManager::getInstance();
+    m_timezoneLocation = cm->getConfigString("timezoneLoc", m_timezoneLocation); // config added in MainHelper
+    int clockFormat = cm->getConfigInt("clockFormat", CLOCK_FORMAT); // config added in ClockWidget
+    m_ntpServer = cm->getConfigString("ntpServer", m_ntpServer); // config added in MainHelper
+    b_usentp = cm->getConfigBool("b_usentp", b_usentp); // config added in MainHelper
+    Serial.printf("GlobalTime initialized, tzLoc=%s, clockFormat=%d, ntpServer=%s\n", m_timezoneLocation.c_str(), clockFormat, m_ntpServer.c_str());
+    m_format24hour = (clockFormat == CLOCK_FORMAT_24_HOUR);
+    m_timeClient = new NTPClient(m_udp, m_ntpServer.c_str());
     m_timeClient->begin();
-    m_timeClient->setPoolServerName(NTP_SERVER);
 }
 
 GlobalTime::~GlobalTime() {
@@ -22,14 +30,21 @@ GlobalTime *GlobalTime::getInstance() {
     return m_instance;
 }
 
-void GlobalTime::updateTime() {
-    if (millis() - m_updateTimer > m_oneSecond) {
-        if (m_timeZoneOffset == -1 || (m_nextTimeZoneUpdate > 0 && m_unixEpoch > m_nextTimeZoneUpdate)) {
+void GlobalTime::updateTime(bool force) {
+    if (force || millis() - m_updateTimer > m_oneSecond) {
+        if (m_timeZoneOffset == -1 || (m_nextTimeZoneUpdate > 0 && m_unixEpoch > m_nextTimeZoneUpdate) || m_elapsed_seconds > m_next_web_update_timer) {
             getTimeZoneOffsetFromAPI();
+            // m_unixEpoch = m_current_time;
         }
-        m_timeClient->update();
-        m_unixEpoch = m_timeClient->getEpochTime();
-        m_updateTimer = millis();
+        if (b_usentp == true) {
+            m_timeClient->update();
+            m_unixEpoch = m_timeClient->getEpochTime();
+        } else {
+            m_elapsed_seconds = (millis() - m_last_update_time) / 1000;
+            m_updated_time = m_current_time + m_elapsed_seconds;
+            m_unixEpoch = m_updated_time;
+        }
+
         m_minute = minute(m_unixEpoch);
         if (m_format24hour) {
             m_hour = hour(m_unixEpoch);
@@ -43,8 +58,9 @@ void GlobalTime::updateTime() {
         m_month = month(m_unixEpoch);
         m_monthName = LOC_MONTH[m_month - 1];
         m_year = year(m_unixEpoch);
-        m_weekday = LOC_WEEKDAY[(weekday(m_unixEpoch)) - 1];
+        m_weekday = LOC_WEEKDAY[(weekday(m_unixEpoch)) -1];
         m_time = String(m_hour) + ":" + (m_minute < 10 ? "0" + String(m_minute) : String(m_minute));
+    } else {
     }
 }
 
@@ -132,7 +148,7 @@ bool GlobalTime::isPM() {
 
 void GlobalTime::getTimeZoneOffsetFromAPI() {
     HTTPClient http;
-    http.begin(String(TIMEZONE_API_URL) + "?key=" + TIMEZONE_API_KEY + "&format=json&fields=gmtOffset,zoneEnd&by=zone&zone=" + String(TIMEZONE_API_LOCATION));
+    http.begin(String(TIMEZONE_API_URL) + "?key=" + TIMEZONE_API_KEY + "&format=json&fields=gmtOffset,timestamp,zoneEnd&by=zone&zone=" + String(m_timezoneLocation.c_str()));
     int httpCode = http.GET();
 
     if (httpCode > 0) {
@@ -140,6 +156,8 @@ void GlobalTime::getTimeZoneOffsetFromAPI() {
         DeserializationError error = deserializeJson(doc, http.getString());
         if (!error) {
             m_timeZoneOffset = doc["gmtOffset"].as<int>();
+            m_current_time = doc["timestamp"].as<unsigned long>();
+            m_last_update_time = millis();
             if (doc["zoneEnd"].isNull()) {
                 // Timezone does not use DST, no futher updates necessary
                 m_nextTimeZoneUpdate = 0;
@@ -151,6 +169,8 @@ void GlobalTime::getTimeZoneOffsetFromAPI() {
             Serial.println(m_timeZoneOffset);
             Serial.print("Next timezone update: ");
             Serial.println(m_nextTimeZoneUpdate);
+            Serial.print("Current time from API: ");
+            Serial.println(m_current_time);
             m_timeClient->setTimeOffset(m_timeZoneOffset);
         } else {
             Serial.println("Deserialization error on timezone offset API response");
@@ -158,6 +178,7 @@ void GlobalTime::getTimeZoneOffsetFromAPI() {
     } else {
         Serial.println("Failed to get timezone offset from API");
     }
+    http.end();
 }
 
 bool GlobalTime::getFormat24Hour() {
